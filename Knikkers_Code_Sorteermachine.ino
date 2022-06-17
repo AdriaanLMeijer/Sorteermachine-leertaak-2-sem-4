@@ -8,12 +8,12 @@
 
 //Alle servo van dit systeem worden gedeclareerd:
 Servo sorteerServoK; // de sorteerservo voor de kleine knikkers
-Servo sorteerServoG; // de sorteerservo voor de grote knikkers
 Servo doseerServoK; // de doseerservo voor de kleine knikkers
+Servo sorteerServoG; // de sorteerservo voor de grote knikkers
 Servo doseerServoG; // de doseerservo voor de grote knikkers
 Servo stopper_1K;
-Servo stopper_1G;
 Servo stopper_2K;
+Servo stopper_1G;
 Servo stopper_2G;
 
 // Alle pinnen worden in variabelen gezet:
@@ -47,6 +47,12 @@ uint8_t plastic_aantal;
 uint8_t hout_aantal;
 uint8_t ticker;
 volatile bool noodstopPlaatsgevonden = 0;
+int stopper_1Khoekopen = 105;
+int stopper_1Khoekdicht = 180;
+int stopper_2Khoekopen = 105;
+int stopper_2Khoekdicht = 180;
+int sorteerServoKhoeklinks = 102;
+int sorteerServoKhoekrechts = 55;
 
 //De hoeveelheid knikkers per bakje:
 int aluminium[4] = {1 , 0, 0, 2}; //Glas,Metaal,Plastic,Hout
@@ -150,7 +156,7 @@ void noodstop(){
 
 //de functie voor het sorteren van de grote knikkers:
 void knikker_Groot() {
-  Serial.println("meten gote knikkers");
+  Serial.println("meten gote knikkers"); //hier moet nog een 3de positie inkomen :knikker pakken, laten scennen, loslaten
   delay(500);
   stopper_1G.write(122); //poortje open
   delay(145);
@@ -240,15 +246,47 @@ foutmeting:
 
 //de functie voor het sorteren van de kleine knikkers:
 void knikker_Klein() {
+ //Poortje openen en sluiten, om de knikkers te doseren:
   delay(500);
   Serial.println("meten kleine knikkers");
-  stopper_1K.write(120); //poortje open
-  delay(105);
-  stopper_1K.write(95); //poortje dicht
+  stopper_2K.write(stopper_2Khoekdicht); //servo 2 sluiten
   delay(500);
-  knikker_lezen();
-  delay(200);
-  Serial.println("kleine knikker gesorteerd");
+  stopper_1K.write(stopper_2Khoekopen); //eerste poortje open
+  delay(1000);
+  stopper_1K.write(stopper_2Khoekdicht); //eerste poortje dicht
+  delay(500);
+  
+  //checken of er een knikker in het poortje zit:
+  bool knikkerInPoortje = digitalRead(knikkerKleinDetectiePin);
+  knikkerInPoortje = HIGH;
+  bool sensor;
+  if(knikkerInPoortje == HIGH){
+    sorteerServoK.write(sorteerServoKhoeklinks);//standaard naar de galzen buffer sturen
+    delay(200);
+    stopper_2K.write(stopper_2Khoekopen); //servo 2 openen
+    unsigned long Tijd1 = millis();
+    unsigned long Tijd2;
+    
+    do{
+      // loopje herhalen totdat een bepaalde tijd is bereikt
+      sensor = digitalRead(knikkerKleinMetaalDetectiePin);
+      Tijd2 = millis();
+    }while(Tijd2-Tijd1 <= 2000 && sensor == LOW);
+    
+    if(sensor == LOW){
+      //als de sensor laag is was het een glazen knikker
+      Serial.println("Glazen knikker gesorteerd bij de kleine knikkers");
+    }
+    else if(sensor == HIGH){
+      //als de sensor hoog is was het een metalen knikker
+      sorteerServoK.write(sorteerServoKhoekrechts);//naar de metalen buffer sturen
+      Serial.println("Metalen knikker gesorteerd bij de kleine knikkers");      
+    }
+  }
+  else{
+    Serial.println("Geen knikker gesorteerd bij de kleine knikkers");
+  }
+
 }
 
 // kijken of er genoeg knikkers in de buffers zitten om de bakjes te vullen:
